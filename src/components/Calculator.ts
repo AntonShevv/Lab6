@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import  { ButtonValue } from './Button';
+import { ButtonValue } from './Button';
 
 function useCalculator() {
   const [state, setState] = useState({
@@ -8,18 +8,31 @@ function useCalculator() {
     operation: null as ButtonValue | null,
     overwrite: false,
     history: [] as string[],
+    hasError: false,
   });
 
-  const handleInput = (value: ButtonValue) => {
-    if (value === 'C') {
+  const resetError = () => {
+    if (state.hasError) {
       setState(prev => ({
         ...prev,
+        currentValue: '0',
+        hasError: false,
+      }));
+    }
+  };
+
+  const handleInput = (value: ButtonValue) => {
+    if (state.hasError) resetError();
+
+    if (value === 'C') {
+      setState({
         currentValue: '0',
         previousValue: '',
         operation: null,
         overwrite: false,
         history: [],
-      }));
+        hasError: false,
+      });
       return;
     }
 
@@ -27,20 +40,22 @@ function useCalculator() {
       setState(prev => ({
         ...prev,
         currentValue:
-          prev.currentValue.length === 1
+          prev.currentValue.length === 1 || prev.hasError
             ? '0'
-            : prev.currentValue.substring(0, prev.currentValue.length - 1),
+            : prev.currentValue.slice(0, -1),
+        hasError: false,
       }));
       return;
     }
 
     if (/[0-9]/.test(value)) {
       setState(prev => {
-        const shouldOverwrite = prev.overwrite || prev.currentValue === '0';
+        const shouldOverwrite = prev.overwrite || prev.currentValue === '0' || prev.hasError;
         return {
           ...prev,
           currentValue: shouldOverwrite ? value : prev.currentValue + value,
           overwrite: false,
+          hasError: false,
         };
       });
       return;
@@ -51,6 +66,7 @@ function useCalculator() {
         ...prev,
         currentValue: prev.currentValue.includes('.') ? prev.currentValue : prev.currentValue + '.',
         overwrite: false,
+        hasError: false,
       }));
       return;
     }
@@ -60,112 +76,101 @@ function useCalculator() {
         const newValue = prev.currentValue.startsWith('-')
           ? prev.currentValue.slice(1)
           : '-' + prev.currentValue;
-    
         return {
           ...prev,
           currentValue: newValue,
+          hasError: false,
         };
       });
       return;
     }
-    
-    if (value === '+') {
+
+    if (['+', '-', '*', '/'].includes(value)) {
       setState(prev => ({
         ...prev,
         previousValue: prev.currentValue,
-        operation: '+',
+        operation: value,
         overwrite: true,
+        hasError: false,
       }));
       return;
     }
-
-    if (value === '-') {
-      setState(prev => ({
-        ...prev,
-        previousValue: prev.currentValue,
-        operation: '-',
-        overwrite: true,
-      }));
-      return;
-    }
-
-    if (value === '*') {
-      setState(prev => ({
-        ...prev,
-        previousValue: prev.currentValue,
-        operation: '*',
-        overwrite: true,
-      }));
-      return;
-    }
-
-    if (value === '/') {
-      setState(prev => ({
-        ...prev,
-        previousValue: prev.currentValue,
-        operation: '/',
-        overwrite: true,
-      }));
-      return;
-    }
-
-
   };
 
   const calculate = () => {
-    try {
-      setState(prev => {
-        const current = parseFloat(prev.currentValue);
-        const previous = parseFloat(prev.previousValue);
+    setState(prev => {
+      const current = parseFloat(prev.currentValue);
+      const previous = parseFloat(prev.previousValue);
 
-        let result = 0;
-
-        switch (prev.operation) {
-          case '+':
-            result = previous + current;
-            break;
-          case '-':
-            result = previous - current;
-            break;
-          case '*':
-            result = previous * current;
-            break;
-          case '/':
-            if(current === 0) {
-              throw new Error("Деление на ноль");
-            }
-            result = previous / current;
-            break;
-          default:
-            return prev;
-        }
-
-
+      if (isNaN(current) || isNaN(previous)) {
         return {
           ...prev,
-          currentValue: String(result),
-          previousValue: '',
-          operation: null,
-          overwrite: true,
-          history: [...prev.history, `${prev.previousValue} ${prev.operation} ${prev.currentValue} = ${result}`],
+          currentValue: 'Некорректные числа',
+          hasError: true,
+          overwrite: false,
         };
-      });
-    }
-    catch (Error) {
-      setTimeout(() => setState(prev => ({
+      }
+
+      if (prev.operation === '/' && current === 0) {
+        return {
+          ...prev,
+          currentValue: 'Деление на ноль',
+          hasError: true,
+          overwrite: false,
+        };
+      }
+
+      let result = 0;
+
+      switch (prev.operation) {
+        case '+':
+          result = previous + current;
+          break;
+        case '-':
+          result = previous - current;
+          break;
+        case '*':
+          result = previous * current;
+          break;
+        case '/':
+          result = previous / current;
+          break;
+        default:
+          return prev;
+      }
+
+      return {
         ...prev,
-        currentValue: "Введены некорректные данные"
-      })),2000)
+        currentValue: String(result),
+        previousValue: '',
+        operation: null,
+        overwrite: true,
+        hasError: false,
+        history: [
+          ...prev.history,
+          `${prev.previousValue} ${prev.operation} ${prev.currentValue} = ${result}`,
+        ],
+      };
+    });
 
-    }
-
+    setTimeout(() => {
+      setState(prev => {
+        if (prev.hasError) {
+          return {
+            ...prev,
+            currentValue: '0',
+            hasError: false,
+          };
+        }
+        return prev;
+      });
+    }, 2000);
   };
-
 
   return {
     state,
     handleInput,
-    calculate
+    calculate,
   };
 }
 
