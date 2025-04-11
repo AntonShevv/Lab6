@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { ButtonValue } from './Button';
 
+interface CalculatorState {
+  currentValue: string;
+  previousValue: string;
+  operation: ButtonValue | null;
+  overwrite: boolean;
+  history: string[];
+  hasError: boolean;
+}
+
 function useCalculator() {
-  const [state, setState] = useState({
+  const [state, setState] = useState<CalculatorState>({
     currentValue: '0',
     previousValue: '',
     operation: null as ButtonValue | null,
@@ -25,14 +34,15 @@ function useCalculator() {
     if (state.hasError) resetError();
 
     if (value === 'C') {
-      setState({
+      setState(prev => ({
+        ...prev,
         currentValue: '0',
         previousValue: '',
         operation: null,
         overwrite: false,
         history: [],
         hasError: false,
-      });
+      }));
       return;
     }
 
